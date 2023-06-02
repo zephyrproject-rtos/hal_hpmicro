@@ -550,6 +550,8 @@ hpm_stat_t enet_enable_ptp_frame_type(ENET_Type *ptr, enet_ptp_frame_type_t ptp_
  */
 void enet_set_snapshot_ptp_message_type(ENET_Type *ptr, enet_ts_ss_ptp_msg_t ts_ss_ptp_msg);
 
+void enet_mask_interrupt_event(ENET_Type *ptr, uint32_t mask);
+
 #if defined __cplusplus
 }
 #endif /* __cplusplus */
