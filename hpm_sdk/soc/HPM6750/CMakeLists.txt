@@ -4,8 +4,10 @@
 sdk_inc(toolchains)
 
 if(NOT DEFINED USE_CUSTOM_STARTUP)
-sdk_src(toolchains/gcc/start.S)
+  sdk_src(toolchains/gcc/start.S)
+  sdk_ses_src(toolchains/segger/startup.s)
 endif()
+
 if(NOT DEFINED ADAPTED_ZEPHYR)
 sdk_src(
     toolchains/reset.c
@@ -21,11 +23,6 @@ sdk_src (
     hpm_clock_drv.c
     hpm_otp_drv.c
 )
-
-if(${INCLUDE_BOOTHEADER})
-    sdk_inc(boot)
-    sdk_src(boot/hpm_bootheader.c)
-endif()
 
 sdk_nds_compile_options(-mcpu=d45)
 

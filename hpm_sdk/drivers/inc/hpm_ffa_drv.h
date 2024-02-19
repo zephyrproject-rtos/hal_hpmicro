@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 hpmicro
+ * Copyright (c) 2022 HPMicro
  *
  * SPDX-License-Identifier: BSD-3-Clause
  *
@@ -162,7 +162,6 @@ static inline void ffa_disable_interrupt(FFA_Type *ptr, uint32_t mask)
  *
  * @param [in] ptr FFA base address
  * @param [in] fft_xfer FFT transform context
- * @return Parameter check result
  */
 void ffa_start_fft(FFA_Type *ptr, fft_xfer_t *fft_xfer);
 
@@ -171,7 +170,6 @@ void ffa_start_fft(FFA_Type *ptr, fft_xfer_t *fft_xfer);
  *
  * @param [in] ptr FFA base address
  * @param [in] fir_xfer FIR transform context
- * @return Parameter check result
  */
 void ffa_start_fir(FFA_Type *ptr, fir_xfer_t *fir_xfer);
 

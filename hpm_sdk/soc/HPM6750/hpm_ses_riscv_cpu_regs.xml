@@ -1,6 +1,6 @@
 <!DOCTYPE CPU_Registers_File>
 <Root name="RISCV">
-  <RegisterGroup name="ABI, RV32I" default_visible="No" default_open="No" property="rv_abi" value="ilp32,ilp32d,ilp32f,None">
+  <RegisterGroup name="ABI, RV32I" default_visible="Yes" default_open="Yes" property="rv_abi" value="ilp32,ilp32d,ilp32f,None">
     <Register name="pc" start="0" size="4" />
     <Register name="ra" start="1" size="4" />
     <Register name="sp" start="2" size="4" />
@@ -305,14 +305,6 @@
     <Register name="STVEC" start="0x1105" size="0x4">
       <BitField name="BASE_31_2" start="2" size="30"/>
     </Register>
-    <Register name="SCOUNTEREN" start="0x1106" size="0x4">
-      <BitField name="HPM6" start="6" size="1"/>
-      <BitField name="HPM5" start="5" size="1"/>
-      <BitField name="HPM4" start="4" size="1"/>
-      <BitField name="HPM3" start="3" size="1"/>
-      <BitField name="IR" start="2" size="1"/>
-      <BitField name="CY" start="0" size="1"/>
-    </Register>
     <Register name="SSCRATCH" start="0x1140" size="0x4">
       <BitField name="SSCRATCH" start="0" size="32"/>
     </Register>
@@ -427,15 +419,6 @@
       <BitField name="BASE_31_2" start="2" size="30"/>
     </Register>
     <Register name="MCOUNTEREN" start="0x1306" size="0x4">
-      <BitField name="HPM6" start="6" size="1"/>
-      <BitField name="HPM5" start="5" size="1"/>
-      <BitField name="HPM4" start="4" size="1"/>
-      <BitField name="HPM3" start="3" size="1"/>
-      <BitField name="IR" start="2" size="1"/>
-      <BitField name="TM" start="1" size="1"/>
-      <BitField name="CY" start="0" size="1"/>
-    </Register>
-    <Register name="MCOUNTINHIBIT" start="0x1320" size="0x4">
       <BitField name="HPM6" start="6" size="1"/>
       <BitField name="HPM5" start="5" size="1"/>
       <BitField name="HPM4" start="4" size="1"/>
@@ -655,272 +638,6 @@
     <Register name="DSCRATCH1" start="0x17b3" size="0x4">
       <BitField name="DSCRATCH" start="0" size="32"/>
     </Register>
-    <Register name="MILMB" start="0x17c0" size="0x4">
-      <BitField name="IBPA" start="10" size="22"/>
-      <BitField name="RWECC" start="3" size="1"/>
-      <BitField name="ECCEN" start="1" size="2"/>
-      <BitField name="IEN" start="0" size="1"/>
-    </Register>
-    <Register name="MDLMB" start="0x17c1" size="0x4">
-      <BitField name="DBPA" start="10" size="22"/>
-      <BitField name="RWECC" start="3" size="1"/>
-      <BitField name="ECCEN" start="1" size="2"/>
-      <BitField name="DEN" start="0" size="1"/>
-    </Register>
-    <Register name="MECC_CODE" start="0x17c2" size="0x4">
-      <BitField name="INSN" start="22" size="1"/>
-      <BitField name="RAMID" start="18" size="4"/>
-      <BitField name="P" start="17" size="1"/>
-      <BitField name="C" start="16" size="1"/>
-      <BitField name="CODE" start="0" size="7"/>
-    </Register>
-    <Register name="MNVEC" start="0x17c3" size="0x4">
-      <BitField name="MNVEC" start="0" size="32"/>
-    </Register>
-    <Register name="MXSTATUS" start="0x17c4" size="0x4">
-      <BitField name="PDME" start="5" size="1"/>
-      <BitField name="DME" start="4" size="1"/>
-      <BitField name="PPFT_EN" start="1" size="1"/>
-      <BitField name="PFT_EN" start="0" size="1"/>
-    </Register>
-    <Register name="MPFT_CTL" start="0x17c5" size="0x4">
-      <BitField name="FAST_INT" start="8" size="1"/>
-      <BitField name="T_LEVEL" start="4" size="4"/>
-    </Register>
-    <Register name="MHSP_CTL" start="0x17c6" size="0x4">
-      <BitField name="M" start="5" size="1"/>
-      <BitField name="S" start="4" size="1"/>
-      <BitField name="U" start="3" size="1"/>
-      <BitField name="SCHM" start="2" size="1"/>
-      <BitField name="UDF_EN" start="1" size="1"/>
-      <BitField name="OVF_EN" start="0" size="1"/>
-    </Register>
-    <Register name="MSP_BOUND" start="0x17c7" size="0x4">
-      <BitField name="MSP_BOUND" start="0" size="32"/>
-    </Register>
-    <Register name="MSP_BASE" start="0x17c8" size="0x4">
-      <BitField name="SP_BASE" start="0" size="32"/>
-    </Register>
-    <Register name="MDCAUSE" start="0x17c9" size="0x4">
-      <BitField name="PM" start="5" size="2"/>
-      <BitField name="MDCAUSE" start="0" size="3"/>
-    </Register>
-    <Register name="MCACHE_CTL" start="0x17ca" size="0x4">
-      <BitField name="DC_WAROUND" start="13" size="2"/>
-      <BitField name="DC_FIRST_WORD" start="12" size="1"/>
-      <BitField name="IC_FIRST_WORD" start="11" size="1"/>
-      <BitField name="DPREF_EN" start="10" size="1"/>
-      <BitField name="IPREF_EN" start="9" size="1"/>
-      <BitField name="CCTL_SUEN" start="8" size="1"/>
-      <BitField name="DC_RWECC" start="7" size="1"/>
-      <BitField name="IC_RWECC" start="6" size="1"/>
-      <BitField name="DC_ECCEN" start="4" size="2"/>
-      <BitField name="IC_ECCEN" start="2" size="2"/>
-      <BitField name="DC_EN" start="1" size="1"/>
-      <BitField name="IC_EN" start="0" size="1"/>
-    </Register>
-    <Register name="MCCTLBEGINADDR" start="0x17cb" size="0x4">
-      <BitField name="VA" start="0" size="32"/>
-    </Register>
-    <Register name="MCCTLCOMMAND" start="0x17cc" size="0x4">
-      <BitField name="VA" start="0" size="5"/>
-    </Register>
-    <Register name="MCCTLDATA" start="0x17cd" size="0x4">
-      <BitField name="VA" start="0" size="5"/>
-    </Register>
-    <Register name="MCOUNTERWEN" start="0x17ce" size="0x4">
-      <BitField name="HPM6" start="6" size="1"/>
-      <BitField name="HPM5" start="5" size="1"/>
-      <BitField name="HPM4" start="4" size="1"/>
-      <BitField name="HPM3" start="3" size="1"/>
-      <BitField name="IR" start="2" size="1"/>
-      <BitField name="CY" start="0" size="1"/>
-    </Register>
-    <Register name="MCOUNTERINTEN" start="0x17cf" size="0x4">
-      <BitField name="HPM6" start="6" size="1"/>
-      <BitField name="HPM5" start="5" size="1"/>
-      <BitField name="HPM4" start="4" size="1"/>
-      <BitField name="HPM3" start="3" size="1"/>
-      <BitField name="IR" start="2" size="1"/>
-      <BitField name="CY" start="0" size="1"/>
-    </Register>
-    <Register name="MMISC_CTL" start="0x17d0" size="0x4">
-      <BitField name="NBLD_EN" start="8" size="1"/>
-      <BitField name="MSA_UNA" start="6" size="1"/>
-      <BitField name="BRPE" start="3" size="1"/>
-      <BitField name="RVCOMPM" start="2" size="1"/>
-      <BitField name="VEC_PLIC" start="1" size="1"/>
-    </Register>
-    <Register name="MCOUNTERMASK_M" start="0x17d1" size="0x4">
-      <BitField name="HPM6" start="6" size="1"/>
-      <BitField name="HPM5" start="5" size="1"/>
-      <BitField name="HPM4" start="4" size="1"/>
-      <BitField name="HPM3" start="3" size="1"/>
-      <BitField name="IR" start="2" size="1"/>
-      <BitField name="CY" start="0" size="1"/>
-    </Register>
-    <Register name="MCOUNTERMASK_S" start="0x17d2" size="0x4">
-      <BitField name="HPM6" start="6" size="1"/>
-      <BitField name="HPM5" start="5" size="1"/>
-      <BitField name="HPM4" start="4" size="1"/>
-      <BitField name="HPM3" start="3" size="1"/>
-      <BitField name="IR" start="2" size="1"/>
-      <BitField name="CY" start="0" size="1"/>
-    </Register>
-    <Register name="MCOUNTERMASK_U" start="0x17d3" size="0x4">
-      <BitField name="HPM6" start="6" size="1"/>
-      <BitField name="HPM5" start="5" size="1"/>
-      <BitField name="HPM4" start="4" size="1"/>
-      <BitField name="HPM3" start="3" size="1"/>
-      <BitField name="IR" start="2" size="1"/>
-      <BitField name="CY" start="0" size="1"/>
-    </Register>
-    <Register name="MCOUNTEROVF" start="0x17d4" size="0x4">
-      <BitField name="HPM6" start="6" size="1"/>
-      <BitField name="HPM5" start="5" size="1"/>
-      <BitField name="HPM4" start="4" size="1"/>
-      <BitField name="HPM3" start="3" size="1"/>
-      <BitField name="IR" start="2" size="1"/>
-      <BitField name="CY" start="0" size="1"/>
-    </Register>
-    <Register name="MSLIDELEG" start="0x17d5" size="0x4">
-      <BitField name="PMOVI" start="18" size="1"/>
-      <BitField name="BWEI" start="17" size="1"/>
-      <BitField name="IMECCI" start="16" size="1"/>
-    </Register>
-    <Register name="MCLK_CTL" start="0x17df" size="0x4">
-      <BitField name="FUNIT" start="16" size="16"/>
-      <BitField name="VI" start="15" size="1"/>
-      <BitField name="VR" start="14" size="1"/>
-      <BitField name="AQ" start="13" size="1"/>
-      <BitField name="DQ" start="12" size="1"/>
-      <BitField name="UQ" start="11" size="1"/>
-      <BitField name="FP" start="10" size="1"/>
-      <BitField name="CLKGATE" start="0" size="8"/>
-    </Register>
-    <Register name="DEXC2DBG" start="0x17e0" size="0x4">
-      <BitField name="PMOV" start="19" size="1"/>
-      <BitField name="SPF" start="18" size="1"/>
-      <BitField name="LPF" start="17" size="1"/>
-      <BitField name="IPF" start="16" size="1"/>
-      <BitField name="BWE" start="15" size="1"/>
-      <BitField name="SLPECC" start="14" size="1"/>
-      <BitField name="ACE" start="13" size="1"/>
-      <BitField name="HSP" start="12" size="1"/>
-      <BitField name="MEC" start="11" size="1"/>
-      <BitField name="SEC" start="9" size="1"/>
-      <BitField name="UEC" start="8" size="1"/>
-      <BitField name="SAF" start="7" size="1"/>
-      <BitField name="SAM" start="6" size="1"/>
-      <BitField name="LAF" start="5" size="1"/>
-      <BitField name="LAM" start="4" size="1"/>
-      <BitField name="NMI" start="3" size="1"/>
-      <BitField name="II" start="2" size="1"/>
-      <BitField name="IAF" start="1" size="1"/>
-      <BitField name="IAM" start="0" size="1"/>
-    </Register>
-    <Register name="DDCAUSE" start="0x17e1" size="0x4">
-      <BitField name="SUBTYPE" start="8" size="8"/>
-      <BitField name="MAINTYPE" start="0" size="8"/>
-    </Register>
-    <Register name="UITB" start="0x1800" size="0x4">
-      <BitField name="ADDR" start="2" size="30"/>
-      <BitField name="HW" start="0" size="1"/>
-    </Register>
-    <Register name="UCODE" start="0x1801" size="0x4">
-      <BitField name="OV" start="0" size="1"/>
-    </Register>
-    <Register name="UDCAUSE" start="0x1809" size="0x4">
-      <BitField name="UDCAUSE" start="0" size="3"/>
-    </Register>
-    <Register name="UCCTLBEGINADDR" start="0x180b" size="0x4">
-      <BitField name="VA" start="0" size="32"/>
-    </Register>
-    <Register name="UCCTLCOMMAND" start="0x180c" size="0x4">
-      <BitField name="VA" start="0" size="5"/>
-    </Register>
-    <Register name="SLIE" start="0x19c4" size="0x4">
-      <BitField name="PMOVI" start="18" size="1"/>
-      <BitField name="BWEI" start="17" size="1"/>
-      <BitField name="IMECCI" start="16" size="1"/>
-    </Register>
-    <Register name="SLIP" start="0x19c5" size="0x4">
-      <BitField name="PMOVI" start="18" size="1"/>
-      <BitField name="BWEI" start="17" size="1"/>
-      <BitField name="IMECCI" start="16" size="1"/>
-    </Register>
-    <Register name="SDCAUSE" start="0x19c9" size="0x4">
-      <BitField name="PM" start="5" size="2"/>
-      <BitField name="SDCAUSE" start="0" size="3"/>
-    </Register>
-    <Register name="SCCTLDATA" start="0x19cd" size="0x4">
-      <BitField name="VA" start="0" size="5"/>
-    </Register>
-    <Register name="SCOUNTERINTEN" start="0x19cf" size="0x4">
-      <BitField name="HPM6" start="6" size="1"/>
-      <BitField name="HPM5" start="5" size="1"/>
-      <BitField name="HPM4" start="4" size="1"/>
-      <BitField name="HPM3" start="3" size="1"/>
-      <BitField name="IR" start="2" size="1"/>
-      <BitField name="CY" start="0" size="1"/>
-    </Register>
-    <Register name="SCOUNTERMASK_M" start="0x19d1" size="0x4">
-      <BitField name="HPM6" start="6" size="1"/>
-      <BitField name="HPM5" start="5" size="1"/>
-      <BitField name="HPM4" start="4" size="1"/>
-      <BitField name="HPM3" start="3" size="1"/>
-      <BitField name="IR" start="2" size="1"/>
-      <BitField name="CY" start="0" size="1"/>
-    </Register>
-    <Register name="SCOUNTERMASK_S" start="0x19d2" size="0x4">
-      <BitField name="HPM6" start="6" size="1"/>
-      <BitField name="HPM5" start="5" size="1"/>
-      <BitField name="HPM4" start="4" size="1"/>
-      <BitField name="HPM3" start="3" size="1"/>
-      <BitField name="IR" start="2" size="1"/>
-      <BitField name="CY" start="0" size="1"/>
-    </Register>
-    <Register name="SCOUNTERMASK_U" start="0x19d3" size="0x4">
-      <BitField name="HPM6" start="6" size="1"/>
-      <BitField name="HPM5" start="5" size="1"/>
-      <BitField name="HPM4" start="4" size="1"/>
-      <BitField name="HPM3" start="3" size="1"/>
-      <BitField name="IR" start="2" size="1"/>
-      <BitField name="CY" start="0" size="1"/>
-    </Register>
-    <Register name="SCOUNTEROVF" start="0x19d4" size="0x4">
-      <BitField name="HPM6" start="6" size="1"/>
-      <BitField name="HPM5" start="5" size="1"/>
-      <BitField name="HPM4" start="4" size="1"/>
-      <BitField name="HPM3" start="3" size="1"/>
-      <BitField name="IR" start="2" size="1"/>
-      <BitField name="CY" start="0" size="1"/>
-    </Register>
-    <Register name="SCOUNTINHIBIT" start="0x19e0" size="0x4">
-      <BitField name="HPM6" start="6" size="1"/>
-      <BitField name="HPM5" start="5" size="1"/>
-      <BitField name="HPM4" start="4" size="1"/>
-      <BitField name="HPM3" start="3" size="1"/>
-      <BitField name="IR" start="2" size="1"/>
-      <BitField name="TM" start="1" size="1"/>
-      <BitField name="CY" start="0" size="1"/>
-    </Register>
-    <Register name="SHPMEVENT3" start="0x19e3" size="0x4">
-      <BitField name="SEL" start="4" size="5"/>
-      <BitField name="TYPE" start="0" size="4"/>
-    </Register>
-    <Register name="SHPMEVENT4" start="0x19e4" size="0x4">
-      <BitField name="SEL" start="4" size="5"/>
-      <BitField name="TYPE" start="0" size="4"/>
-    </Register>
-    <Register name="SHPMEVENT5" start="0x19e5" size="0x4">
-      <BitField name="SEL" start="4" size="5"/>
-      <BitField name="TYPE" start="0" size="4"/>
-    </Register>
-    <Register name="SHPMEVENT6" start="0x19e6" size="0x4">
-      <BitField name="SEL" start="4" size="5"/>
-      <BitField name="TYPE" start="0" size="4"/>
-    </Register>
     <Register name="MCYCLE" start="0x1b00" size="0x4">
       <BitField name="COUNTER" start="0" size="32"/>
     </Register>
@@ -1029,6 +746,12 @@
     <Register name="PMAADDR_PMAADDR15" start="0x1bdf" size="0x4">
       <BitField name="PMAADDR_31_2" start="2" size="30"/>
     </Register>
+    <Register name="CYCLE" start="0x1c00" size="0x4">
+      <BitField name="CYCLE" start="0" size="32"/>
+    </Register>
+    <Register name="CYCLEH" start="0x1c80" size="0x4">
+      <BitField name="CYCLEH" start="0" size="32"/>
+    </Register>
     <Register name="MVENDORID" start="0x1f11" size="0x4">
       <BitField name="MVENDORID" start="0" size="32"/>
     </Register>
@@ -1042,51 +765,6 @@
     </Register>
     <Register name="MHARTID" start="0x1f14" size="0x4">
       <BitField name="MHARTID" start="0" size="32"/>
-    </Register>
-    <Register name="MICM_CFG" start="0x1fc0" size="0x4">
-      <BitField name="SETH" start="24" size="1"/>
-      <BitField name="ILM_ECC" start="21" size="2"/>
-      <BitField name="ILMSZ" start="15" size="5"/>
-      <BitField name="ILMB" start="12" size="3"/>
-      <BitField name="IC_ECC" start="10" size="2"/>
-      <BitField name="ILCK" start="9" size="1"/>
-      <BitField name="ISZ" start="6" size="3"/>
-      <BitField name="IWAY" start="3" size="3"/>
-      <BitField name="ISET" start="0" size="3"/>
-    </Register>
-    <Register name="MDCM_CFG" start="0x1fc1" size="0x4">
-      <BitField name="SETH" start="24" size="1"/>
-      <BitField name="DLM_ECC" start="21" size="2"/>
-      <BitField name="DLMSZ" start="15" size="5"/>
-      <BitField name="DLMB" start="12" size="3"/>
-      <BitField name="DC_ECC" start="10" size="2"/>
-      <BitField name="DLCK" start="9" size="1"/>
-      <BitField name="DSZ" start="6" size="3"/>
-      <BitField name="DWAY" start="3" size="3"/>
-      <BitField name="DSET" start="0" size="3"/>
-    </Register>
-    <Register name="MMSC_CFG" start="0x1fc2" size="0x4">
-      <BitField name="MSC_EXT" start="31" size="1"/>
-      <BitField name="PPMA" start="30" size="1"/>
-      <BitField name="EDSP" start="29" size="1"/>
-      <BitField name="VCCTL" start="18" size="2"/>
-      <BitField name="EFHW" start="17" size="1"/>
-      <BitField name="CCTLCSR" start="16" size="1"/>
-      <BitField name="PMNDS" start="15" size="1"/>
-      <BitField name="LMSLVP" start="14" size="1"/>
-      <BitField name="EV5PE" start="13" size="1"/>
-      <BitField name="VPLIC" start="12" size="1"/>
-      <BitField name="ACE" start="6" size="1"/>
-      <BitField name="HSP" start="5" size="1"/>
-      <BitField name="PFT" start="4" size="1"/>
-      <BitField name="ECD" start="3" size="1"/>
-      <BitField name="TLB_ECC" start="1" size="2"/>
-      <BitField name="ECC" start="0" size="1"/>
-    </Register>
-    <Register name="MMSC_CFG2" start="0x1fc3" size="0x4">
-      <BitField name="FINV" start="5" size="1"/>
-      <BitField name="ZFH" start="1" size="1"/>
-      <BitField name="BF16CVT" start="0" size="1"/>
     </Register>
   </RegisterGroup>
 </Root>
