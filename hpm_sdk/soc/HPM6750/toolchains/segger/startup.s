@@ -38,20 +38,20 @@
 
 File      : SEGGER_RISCV_crt0.s
 Purpose   : Generic runtime init startup code for RISC-V CPUs.
-            Designed to work with the SEGGER linker to produce 
+            Designed to work with the SEGGER linker to produce
             smallest possible executables.
-            
+
             This file does not normally require any customization.
 
 Additional information:
   Preprocessor Definitions
     FULL_LIBRARY
-      If defined then 
+      If defined then
         - argc, argv are set up by calling SEGGER_SEMIHOST_GetArgs().
         - the exit symbol is defined and executes on return from main.
         - the exit symbol calls destructors, atexit functions and then
           calls SEGGER_SEMIHOST_Exit().
-    
+
       If not defined then
         - argc and argv are not valid (main is assumed to not take parameters)
         - the exit symbol is defined, executes on return from main and
@@ -147,16 +147,16 @@ Additional information:
 *       _start
 *
 *  Function description
-*    Entry point for the startup code. 
+*    Entry point for the startup code.
 *    Usually called by the reset handler.
-*    Performs all initialisation, based on the entries in the 
+*    Performs all initialisation, based on the entries in the
 *    linker-generated init table, then calls main().
-*    It is device independent, so there should not be any need for an 
+*    It is device independent, so there should not be any need for an
 *    end-user to modify it.
 *
 *  Additional information
-*    At this point, the stack pointer should already have been 
-*    initialized 
+*    At this point, the stack pointer should already have been
+*    initialized
 *      - by hardware (such as on Cortex-M),
 *      - by the device-specific reset handler,
 *      - or by the debugger (such as for RAM Code).
@@ -171,7 +171,7 @@ START_FUNC _start
         addi    gp, gp, %lo(__global_pointer$)
         lui     tp,     %hi(__thread_pointer$)
         addi    tp, tp, %lo(__thread_pointer$)
-        .option pop        
+        .option pop
 
         csrw    mstatus, zero
         csrw    mcause, zero
@@ -185,6 +185,12 @@ START_FUNC _start
     fscsr zero
 #endif
 
+    /* Enable LMM1 clock */
+    la t0, 0xF4000800
+    lw t1, 0(t0)
+    ori t1, t1, 0x80
+    sw t1, 0(t0)
+
 #ifdef INIT_EXT_RAM_FOR_DATA
     la t0, _stack_safe
     mv sp, t0
@@ -193,6 +199,19 @@ START_FUNC _start
 
         lui     t0,     %hi(__stack_end__)
         addi    sp, t0, %lo(__stack_end__)
+
+#ifdef CONFIG_NOT_ENABLE_ICACHE
+        call    l1c_ic_disable
+#else
+        call    l1c_ic_enable
+#endif
+#ifdef CONFIG_NOT_ENABLE_DCACHE
+        call    l1c_dc_invalidate_all
+        call    l1c_dc_disable
+#else
+        call    l1c_dc_enable
+        call    l1c_dc_invalidate_all
+#endif
 
 #ifndef __NO_SYSTEM_INIT
         //
@@ -207,7 +226,7 @@ START_FUNC _start
         // * Call constructors of global Objects (if any exist)
         //
         la      s0, __SEGGER_init_table__       // Set table pointer to start of initialization table
-L(RunInit): 
+L(RunInit):
         lw      a0, (s0)                        // Get next initialization function from table
         add     s0, s0, 4                       // Increment table pointer to point to function arguments
         jalr    a0                              // Call initialization function
@@ -223,10 +242,33 @@ MARK_FUNC __SEGGER_init_done
     call _clean_up
 #endif
 
-#ifndef CONFIG_FREERTOS 
-    #define HANDLER_TRAP irq_handler_trap
-#else
+#if defined(CONFIG_FREERTOS) && CONFIG_FREERTOS
     #define HANDLER_TRAP freertos_risc_v_trap_handler
+    #define HANDLER_S_TRAP freertos_risc_v_trap_handler
+
+    /* Use mscratch to store isr level */
+    csrw mscratch, 0
+#elif defined(CONFIG_UCOS_III) && CONFIG_UCOS_III
+    #define HANDLER_TRAP ucos_risc_v_trap_handler
+    #define HANDLER_S_TRAP ucos_risc_v_trap_handler
+
+    /* Use mscratch to store isr level */
+    csrw mscratch, 0
+#elif defined(CONFIG_THREADX) && CONFIG_THREADX
+    #define HANDLER_TRAP tx_risc_v_trap_handler
+    #define HANDLER_S_TRAP tx_risc_v_trap_handler
+
+    /* Use mscratch to store isr level */
+    csrw mscratch, 0
+#elif defined(CONFIG_RTTHREAD) && CONFIG_RTTHREAD
+    #define HANDLER_TRAP rtt_risc_v_trap_handler
+    #define HANDLER_S_TRAP rtt_risc_v_trap_handler
+
+    /* Use mscratch to store isr level */
+    csrw mscratch, 0
+#else
+    #define HANDLER_TRAP irq_handler_trap
+    #define HANDLER_S_TRAP irq_handler_s_trap
 #endif
 
 #ifndef USE_NONVECTOR_MODE
@@ -240,12 +282,15 @@ MARK_FUNC __SEGGER_init_done
     /* Initial machine trap-vector Base */
     la t0, HANDLER_TRAP
     csrw mtvec, t0
+
+    /* Disable vectored external PLIC interrupt */
+    csrci CSR_MMISC_CTL, 2
 #endif
 
 MARK_FUNC start
 #ifndef FULL_LIBRARY
         //
-        // In a real embedded application ("Free-standing environment"), 
+        // In a real embedded application ("Free-standing environment"),
         // main() does not get any arguments,
         // which means it is not necessary to init a0 and a1.
         //
@@ -266,10 +311,10 @@ MARK_FUNC exit
         .size exit,.-exit
 #else
         //
-        // In a hosted environment, 
-        // we need to load a0 and a1 with argc and argv, in order to handle 
+        // In a hosted environment,
+        // we need to load a0 and a1 with argc and argv, in order to handle
         // the command line arguments.
-        // This is required for some programs running under control of a 
+        // This is required for some programs running under control of a
         // debugger, such as automated tests.
         //
         li      a0, ARGSSPACE
@@ -293,14 +338,14 @@ END_FUNC _start
 #else
         li      a0, 0
         li      a1, 0
-#endif	
+#endif
 
         call    APP_ENTRY_POINT
         tail    exit
-        
+
 END_FUNC _start
 
-        // 
+        //
 #ifdef FULL_LIBRARY
 /*********************************************************************
 *
@@ -308,14 +353,14 @@ END_FUNC _start
 *
 *  Function description
 *    Exit of the system.
-*    Called on return from application entry point or explicit call 
+*    Called on return from application entry point or explicit call
 *    to exit.
 *
 *  Additional information
 *    In a hosted environment exit gracefully, by
 *    saving the return value,
-*    calling destructurs of global objects, 
-*    calling registered atexit functions, 
+*    calling destructurs of global objects,
+*    calling registered atexit functions,
 *    and notifying the host/debugger.
 */
 #undef L
@@ -331,8 +376,8 @@ L(Loop):
         la      t0, __dtors_end__
         beq     s0, t0, L(End)
         lw      t1, 0(s0)
-        addi    s0, s0, 4  
-        jalr    t1  
+        addi    s0, s0, 4
+        jalr    t1
         j       L(Loop)
 L(End):
         //
@@ -366,5 +411,5 @@ nmi_handler:
 1:    j 1b
 
 #include "../vectors.h"
-  
+
 /*************************** End of file ****************************/
