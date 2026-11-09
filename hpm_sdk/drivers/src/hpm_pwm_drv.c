@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 hpmicro
+ * Copyright (c) 2021-2025 HPMicro
  *
  * SPDX-License-Identifier: BSD-3-Clause
  *
@@ -21,25 +21,32 @@ hpm_stat_t pwm_load_cmp_shadow_on_match(PWM_Type *pwm_x,
     return status_success;
 }
 
-void pwm_get_count(PWM_Type *pwm_x, uint32_t *buf, pwm_counter_type_t counter, uint8_t start_index, uint8_t num)
+void pwm_get_captured_count(PWM_Type *pwm_x, uint32_t *buf, pwm_counter_type_t counter, uint8_t start_index, uint8_t num)
 {
     uint32_t i;
     if (counter == pwm_counter_type_capture_falling_edge) {
-        for (i = start_index; i < num; i++) {
+        for (i = start_index; i < start_index + num; i++) {
             *buf = pwm_x->CAPNEG[i];
+            buf++;
         }
     } else {
-        for (i = start_index; i < num; i++) {
+        for (i = start_index; i < start_index + num; i++) {
             *buf = pwm_x->CAPPOS[i];
+            buf++;
         }
     }
 }
 
 void pwm_get_default_cmp_config(PWM_Type *pwm_x, pwm_cmp_config_t *config)
 {
+    (void) pwm_x;
     config->mode = pwm_cmp_mode_output_compare;
     config->update_trigger = pwm_shadow_register_update_on_modify;
     config->enable_ex_cmp = false;
+#if defined(PWM_SOC_HRPWM_SUPPORT) && PWM_SOC_HRPWM_SUPPORT
+    config->enable_hrcmp = false;
+    config->hrcmp = 0;
+#endif
     config->cmp = 0;
     config->ex_cmp = 0;
     config->half_clock_cmp = 0;
@@ -48,6 +55,7 @@ void pwm_get_default_cmp_config(PWM_Type *pwm_x, pwm_cmp_config_t *config)
 
 void pwm_get_default_output_channel_config(PWM_Type *pwm_x, pwm_output_channel_t *config)
 {
+    (void) pwm_x;
     config->cmp_start_index = 0;
     config->cmp_end_index = 0;
     config->invert_output = false;
@@ -55,8 +63,10 @@ void pwm_get_default_output_channel_config(PWM_Type *pwm_x, pwm_output_channel_t
 
 void pwm_get_default_pwm_config(PWM_Type *pwm_x, pwm_config_t *config)
 {
+    (void) pwm_x;
     config->enable_output = false;
-    config->update_trigger = pwm_shadow_register_update_on_modify;
+    config->invert_output = false;
+    config->force_cmd_shadow_update_trigger = pwm_shadow_register_update_on_modify;
     config->fault_mode = pwm_fault_mode_force_output_highz;
     config->fault_recovery_trigger = pwm_fault_recovery_on_fault_clear;
     config->force_source = pwm_force_source_software;
@@ -130,6 +140,33 @@ hpm_stat_t pwm_setup_waveform(PWM_Type *pwm_x,
     return status_success;
 }
 
+hpm_stat_t pwm_update_duty_edge_aligned(PWM_Type *pwm_x, uint8_t cmp_index, float duty)
+{
+    uint32_t target_cmp;
+    uint32_t reload;
+
+    reload = pwm_get_reload_val(pwm_x);
+    target_cmp = (uint32_t)((float)reload / 100 * (100.0f - duty));
+    if (target_cmp == reload) {
+        target_cmp += 1;
+    }
+    pwm_shadow_register_unlock(pwm_x);
+    pwm_cmp_update_cmp_value(pwm_x, cmp_index, target_cmp, 0);
+    return status_success;
+}
+
+hpm_stat_t pwm_update_duty_central_aligned(PWM_Type *pwm_x, uint8_t cmp1_index,
+                                       uint8_t cmp2_index, float duty)
+{
+    uint32_t target_cmp;
+    uint32_t reload;
+
+    reload = pwm_get_reload_val(pwm_x);
+    target_cmp = (uint32_t)((float)reload / 100 * duty);
+    pwm_update_raw_cmp_central_aligned(pwm_x, cmp1_index, cmp2_index, (reload - target_cmp) >> 1, (reload + target_cmp) >> 1);
+    return status_success;
+}
+
 hpm_stat_t pwm_update_raw_cmp_edge_aligned(PWM_Type *pwm_x, uint8_t cmp_index, uint32_t target_cmp)
 {
     pwm_shadow_register_unlock(pwm_x);
@@ -141,6 +178,38 @@ hpm_stat_t pwm_update_raw_cmp_central_aligned(PWM_Type *pwm_x, uint8_t cmp1_inde
                                        uint8_t cmp2_index, uint32_t target_cmp1, uint32_t target_cmp2)
 {
     uint32_t reload = PWM_RLD_RLD_GET(pwm_x->RLD);
+    uint32_t cmp = 0;
+    if (!target_cmp1) {
+        target_cmp1 = reload + 1;
+    }
+    if (!target_cmp2) {
+        target_cmp2 = reload + 1;
+    }
+    if (target_cmp1 > target_cmp2) {
+        cmp = target_cmp1;
+        target_cmp1 = target_cmp2;
+        target_cmp2 = cmp;
+    }
+    pwm_shadow_register_unlock(pwm_x);
+    pwm_cmp_update_cmp_value(pwm_x, cmp1_index, target_cmp1, 0);
+    pwm_cmp_update_cmp_value(pwm_x, cmp2_index, target_cmp2, 0);
+    return status_success;
+}
+#if defined(PWM_SOC_HRPWM_SUPPORT) && PWM_SOC_HRPWM_SUPPORT
+
+hpm_stat_t pwm_update_raw_hrcmp_edge_aligned(PWM_Type *pwm_x, uint8_t cmp_index, uint32_t target_cmp,
+            uint16_t target_hrcmp)
+{
+    pwm_shadow_register_unlock(pwm_x);
+    pwm_cmp_update_hrcmp_value(pwm_x, cmp_index, target_cmp, target_hrcmp);
+    return status_success;
+}
+
+hpm_stat_t pwm_update_raw_hrcmp_central_aligned(PWM_Type *pwm_x, uint8_t cmp1_index,
+                                       uint8_t cmp2_index, uint32_t target_cmp1, uint32_t target_cmp2,
+                                        uint16_t target_hrcmp1, uint16_t target_hrcmp2)
+{
+    uint32_t reload = PWM_RLD_RLD_GET(pwm_x->RLD);
     if (!target_cmp1) {
         target_cmp1 = reload + 1;
     }
@@ -148,7 +217,8 @@ hpm_stat_t pwm_update_raw_cmp_central_aligned(PWM_Type *pwm_x, uint8_t cmp1_inde
         target_cmp2 = reload + 1;
     }
     pwm_shadow_register_unlock(pwm_x);
-    pwm_cmp_update_cmp_value(pwm_x, cmp1_index, target_cmp1, 0);
-    pwm_cmp_update_cmp_value(pwm_x, cmp2_index, target_cmp2, 0);
+    pwm_cmp_update_hrcmp_value(pwm_x, cmp1_index, target_cmp1, target_hrcmp1);
+    pwm_cmp_update_hrcmp_value(pwm_x, cmp2_index, target_cmp2, target_hrcmp2);
     return status_success;
 }
+#endif

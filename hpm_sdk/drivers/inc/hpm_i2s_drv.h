@@ -1,12 +1,12 @@
 /*
- * Copyright (c) 2021 hpmicro
+ * Copyright (c) 2021-2023,2026 HPMicro
  *
  * SPDX-License-Identifier: BSD-3-Clause
  *
  */
 
-#ifndef HPM_I2S_DRV_H 
-#define HPM_I2S_DRV_H 
+#ifndef HPM_I2S_DRV_H
+#define HPM_I2S_DRV_H
 #include "hpm_common.h"
 #include "hpm_soc_feature.h"
 #include "hpm_i2s_regs.h"
@@ -19,24 +19,16 @@
  * @{
  */
 
-/**
- * @brief I2C IRQ mask
- */
-#define I2S_IRQ_TX_FIFO_EMPTY I2S_CTRL_TXDNIE_MASK
-#define I2S_IRQ_RX_FIFO_DATA_AVAILABLE I2S_CTRL_RXDAIE_MASK
-#define I2S_IRQ_ERROR I2S_CTRL_ERRIE_MASK
+typedef enum {
+    I2S_DATA_LINE_0 = 0,
+    I2S_DATA_LINE_1,
+    I2S_DATA_LINE_2,
+    I2S_DATA_LINE_3,
+    I2S_DATA_LINE_MAX = I2S_DATA_LINE_3,
+} i2s_line_num_t;
 
 /**
- * @brief I2C data line
- */
-#define I2S_DATA_LINE_0 (0U)
-#define I2S_DATA_LINE_1 (1U)
-#define I2S_DATA_LINE_2 (2U)
-#define I2S_DATA_LINE_3 (3U)
-#define I2S_DATA_LINE_MAX I2S_DATA_LINE_3
-
-/**
- * @brief I2C config
+ * @brief I2S config
  */
 typedef struct i2s_config {
     bool invert_mclk_out;
@@ -50,23 +42,54 @@ typedef struct i2s_config {
     bool use_external_fclk;
     bool enable_mclk_out;
     bool frame_start_at_rising_edge;
-    uint16_t fifo_threshold;
+    uint16_t tx_fifo_threshold;
+    uint16_t rx_fifo_threshold;
 } i2s_config_t;
 
 /**
- * @brief I2C transfer config
+ * @brief I2S transfer config
  */
-typedef struct i2x_transfer_config {
+typedef struct i2s_transfer_config {
     uint32_t sample_rate;
     bool enable_tdm_mode;
     uint8_t channel_num_per_frame;
     uint8_t channel_length;          /* 16-bit or 32-bit */
-    uint8_t audio_depth;             /* 8-bit, 24-bit, 32-bit */
+    uint8_t audio_depth;             /* 16-bit, 24-bit, 32-bit */
     bool master_mode;
     uint8_t protocol;
-    uint8_t data_line;
+    i2s_line_num_t data_line;
     uint32_t channel_slot_mask;
 } i2s_transfer_config_t;
+
+/**
+ * @brief I2S multiline transfer config
+ */
+typedef struct i2s_multiline_transfer_config {
+    uint32_t sample_rate;
+    bool enable_tdm_mode;
+    uint8_t channel_num_per_frame;
+    uint8_t channel_length;          /* 16-bit or 32-bit */
+    uint8_t audio_depth;             /* 16-bit, 24-bit, 32-bit */
+    bool master_mode;
+    uint8_t protocol;
+    bool tx_data_line_en[4];
+    bool rx_data_line_en[4];
+    uint32_t tx_channel_slot_mask[4];
+    uint32_t rx_channel_slot_mask[4];
+} i2s_multiline_transfer_config_t;
+
+typedef enum {
+    i2s_tx_fifo_threshold_irq_mask = I2S_CTRL_TXDNIE_MASK,
+    i2s_rx_fifo_threshold_irq_mask = I2S_CTRL_RXDAIE_MASK,
+    i2s_fifo_error_irq_mask = I2S_CTRL_ERRIE_MASK, /*<! rx fifo overrun, tx fifo underrun */
+} i2s_irq_mask_t;
+
+typedef enum {
+    i2s_data_line_rx_fifo_avail = 1U, /*<! data avail */
+    i2s_data_line_tx_fifo_avail = 2U, /*<! fifo empty avail */
+    i2s_data_line_rx_fifo_overrun = 4U,
+    i2s_data_line_tx_fifo_underrun = 8U,
+} i2s_data_line_stat_t;
 
 #ifdef __cplusplus
 extern "C" {
@@ -163,7 +186,7 @@ static inline void i2s_gate_mclk(I2S_Type *ptr)
  */
 static inline void i2s_enable_tx_dma_request(I2S_Type *ptr)
 {
-    ptr->CTRL |=I2S_CTRL_TX_DMA_EN_MASK;
+    ptr->CTRL |= I2S_CTRL_TX_DMA_EN_MASK;
 }
 
 /**
@@ -183,7 +206,7 @@ static inline void i2s_disable_tx_dma_request(I2S_Type *ptr)
  */
 static inline void i2s_enable_rx_dma_request(I2S_Type *ptr)
 {
-    ptr->CTRL |=I2S_CTRL_RX_DMA_EN_MASK;
+    ptr->CTRL |= I2S_CTRL_RX_DMA_EN_MASK;
 }
 
 /**
@@ -221,19 +244,43 @@ static inline void i2s_disable_irq(I2S_Type *ptr, uint32_t mask)
 /**
  * @brief I2S enable
  *
+ * @note dropped API, please use i2s_start
+ *
  * @param [in] ptr I2S base address
  */
 static inline void i2s_enable(I2S_Type *ptr)
 {
-    ptr->CTRL |= ~I2S_CTRL_I2S_EN_MASK;
+    ptr->CTRL |= I2S_CTRL_I2S_EN_MASK;
 }
 
 /**
  * @brief I2S disable
  *
+ * @note dropped API, please use i2s_stop
+ *
  * @param [in] ptr I2S base address
  */
 static inline void i2s_disable(I2S_Type *ptr)
+{
+    ptr->CTRL &= ~I2S_CTRL_I2S_EN_MASK;
+}
+
+/**
+ * @brief I2S start
+ *
+ * @param [in] ptr I2S base address
+ */
+static inline void i2s_start(I2S_Type *ptr)
+{
+    ptr->CTRL |= I2S_CTRL_I2S_EN_MASK;
+}
+
+/**
+ * @brief I2S stop
+ *
+ * @param [in] ptr I2S base address
+ */
+static inline void i2s_stop(I2S_Type *ptr)
 {
     ptr->CTRL &= ~I2S_CTRL_I2S_EN_MASK;
 }
@@ -261,6 +308,28 @@ static inline void i2s_disable_rx(I2S_Type *ptr, uint8_t rx_mask)
 }
 
 /**
+ * @brief I2S enable rx line function
+ *
+ * @param [in] ptr I2S base address
+ * @param [in] line rx data line, @ref i2s_line_num_t
+ */
+static inline void i2s_enable_rx_line(I2S_Type *ptr, i2s_line_num_t line)
+{
+    ptr->CTRL |= I2S_CTRL_RX_EN_SET(1u << line);
+}
+
+/**
+ * @brief I2S disable rx line function
+ *
+ * @param [in] ptr I2S base address
+ * @param [in] line rx data line, @ref i2s_line_num_t
+ */
+static inline void i2s_disable_rx_line(I2S_Type *ptr, i2s_line_num_t line)
+{
+    ptr->CTRL &= ~I2S_CTRL_RX_EN_SET(1u << line);
+}
+
+/**
  * @brief I2S enable tx function
  *
  * @param [in] ptr I2S base address
@@ -283,25 +352,49 @@ static inline void i2s_disable_tx(I2S_Type *ptr, uint8_t tx_mask)
 }
 
 /**
- * @brief I2S clear tx fifo
+ * @brief I2S enable tx function
  *
  * @param [in] ptr I2S base address
+ * @param [in] line tx data line, @ref i2s_line_num_t
  */
-static inline void i2s_clear_tx_fifo(I2S_Type *ptr)
+static inline void i2s_enable_tx_line(I2S_Type *ptr, i2s_line_num_t line)
 {
-    ptr->CTRL |= I2S_CTRL_TXFIFOCLR_MASK;
-    while (ptr->CTRL & I2S_CTRL_TXFIFOCLR_MASK) {}
+    ptr->CTRL |= I2S_CTRL_TX_EN_SET(1u << line);
 }
 
 /**
- * @brief I2S clear rx fifo
+ * @brief I2S disbale tx function
  *
  * @param [in] ptr I2S base address
+ * @param [in] line tx data line, @ref i2s_line_num_t
  */
-static inline void i2s_clear_rx_fifo(I2S_Type *ptr)
+static inline void i2s_disable_tx_line(I2S_Type *ptr, i2s_line_num_t line)
 {
-    ptr->CTRL |= I2S_CTRL_RXFIFOCLR_MASK;
-    while (ptr->CTRL & I2S_CTRL_RXFIFOCLR_MASK) {}
+    ptr->CTRL &= ~I2S_CTRL_TX_EN_SET(1u << line);
+}
+
+/**
+ * @brief I2S set tx slot mask
+ *
+ * @param [in] ptr I2S base address
+ * @param [in] line tx data line, @ref i2s_line_num_t
+ * @param [in] slot_mask slot mask
+ */
+static inline void i2s_set_txd_slot(I2S_Type *ptr, i2s_line_num_t line, uint32_t slot_mask)
+{
+    ptr->TXDSLOT[line] = slot_mask;
+}
+
+/**
+ * @brief I2S set rx slot mask
+ *
+ * @param [in] ptr I2S base address
+ * @param [in] line rx data line, @ref i2s_line_num_t
+ * @param [in] slot_mask slot mask
+ */
+static inline void i2s_set_rxd_slot(I2S_Type *ptr, i2s_line_num_t line, uint32_t slot_mask)
+{
+    ptr->RXDSLOT[line] = slot_mask;
 }
 
 /**
@@ -318,24 +411,54 @@ static inline void i2s_reset_clock_gen(I2S_Type *ptr)
 /**
  * @brief I2S reset tx function
  *
+ * @note This API will disable I2S TX module and reset TX function(including clearing the TX FIFO).
+ *       The software reset relies on a valid BCLK, if the current BCLK is not
+ *       valid (external BCLK source, gated off, or zero divider), this API
+ *       switches to the internal BCLK automatically and restores the previous
+ *       clock configuration after the reset is done.
+ *
  * @param [in] ptr I2S base address
+ * @retval hpm_stat_t status_success or status_timeout
  */
-static inline void i2s_reset_tx(I2S_Type *ptr)
-{
-    ptr->CTRL |= I2S_CTRL_SFTRST_TX_MASK;
-    ptr->CTRL &= ~I2S_CTRL_SFTRST_TX_MASK;
-}
+hpm_stat_t i2s_reset_tx(I2S_Type *ptr);
 
 /**
  * @brief I2S reset rx function
  *
+ * @note This API will disable I2S RX module and reset RX function(including clearing the RX FIFO).
+ *       The software reset relies on a valid BCLK, if the current BCLK is not
+ *       valid (external BCLK source, gated off, or zero divider), this API
+ *       switches to the internal BCLK automatically and restores the previous
+ *       clock configuration after the reset is done.
+ *
  * @param [in] ptr I2S base address
+ * @retval hpm_stat_t status_success or status_timeout
  */
-static inline void i2s_reset_rx(I2S_Type *ptr)
-{
-    ptr->CTRL |= I2S_CTRL_SFTRST_RX_MASK;
-    ptr->CTRL &= ~I2S_CTRL_SFTRST_RX_MASK;
-}
+hpm_stat_t i2s_reset_rx(I2S_Type *ptr);
+
+/**
+ * @brief I2S reset tx and rx function
+ *
+ * @note The function of this API is equivalent to that of i2s_reset_all.
+ *
+ * @param [in] ptr I2S base address
+ * @retval hpm_stat_t status_success or status_timeout
+ */
+hpm_stat_t i2s_reset_tx_rx(I2S_Type *ptr);
+
+/**
+ * @brief I2S reset tx/rx and clock generator module
+ *
+ * @note This API will disable I2S and reset TX/RX(including clearing the FIFO) and clock generator module.
+ *       The software reset relies on a valid BCLK, if the current BCLK is not
+ *       valid (external BCLK source, gated off, or zero divider), this API
+ *       switches to the internal BCLK automatically and restores the previous
+ *       clock configuration after the reset is done.
+ *
+ * @param [in] ptr I2S base address
+ * @retval hpm_stat_t status_success or status_timeout
+ */
+hpm_stat_t i2s_reset_all(I2S_Type *ptr);
 
 /**
  * @brief I2S get tx fifo level
@@ -353,13 +476,13 @@ static inline uint32_t i2s_get_tx_fifo_level(I2S_Type *ptr)
  * @brief I2S get data line tx fifo level
  *
  * @param [in] ptr I2S base address
- * @param [in] line I2S data line
+ * @param [in] line I2S data line, @ref i2s_line_num_t
  *
  * @retval I2S data line tx fifo level
  */
-static inline uint32_t i2s_get_tx_line_fifo_level(I2S_Type *ptr, uint8_t line)
+static inline uint32_t i2s_get_tx_line_fifo_level(I2S_Type *ptr, i2s_line_num_t line)
 {
-    return i2s_get_tx_fifo_level(ptr) & (0xFF << (line << 3));
+    return (i2s_get_tx_fifo_level(ptr) & (0xFF << (line << 3))) >> (line << 3);
 }
 
 /**
@@ -378,13 +501,55 @@ static inline uint32_t i2s_get_rx_fifo_level(I2S_Type *ptr)
  * @brief I2S get data line rx fifo level
  *
  * @param [in] ptr I2S base address
- * @param [in] line I2S data line
+ * @param [in] line I2S data line, @ref i2s_line_num_t
  *
  * @retval I2S data line rx fifo level
  */
-static inline uint32_t i2s_get_rx_line_fifo_level(I2S_Type *ptr, uint8_t line)
+static inline uint32_t i2s_get_rx_line_fifo_level(I2S_Type *ptr, i2s_line_num_t line)
 {
-    return i2s_get_rx_fifo_level(ptr) & (0xFF << (line << 3));
+    return (i2s_get_rx_fifo_level(ptr) & (0xFF << (line << 3))) >> (line << 3);
+}
+
+/**
+ * @brief Check I2S data line status
+ *
+ * @param[in] ptr I2S base address
+ * @param[in] line I2S data line, @ref i2s_line_num_t
+ *
+ * @retval i2s_data_line_rx_fifo_avail data in rx fifo >= threshold
+ * @retval i2s_data_line_tx_fifo_avail data in tx fifo <= threshold
+ * @retval i2s_data_line_rx_fifo_overrun  rx fifo overrun occured
+ * @retval i2s_data_line_tx_fifo_underrun  tx fifo underrun occured
+ */
+static inline uint32_t i2s_check_data_line_status(I2S_Type *ptr, i2s_line_num_t line)
+{
+    volatile uint32_t reg_val = ptr->STA;
+    uint32_t bit_mask;
+    uint32_t stat = 0;
+
+    bit_mask = 1 << (I2S_STA_RX_DA_SHIFT + line);
+    if ((bit_mask & reg_val) != 0) {
+        stat |= i2s_data_line_rx_fifo_avail;
+    }
+
+    bit_mask = 1 << (I2S_STA_TX_DN_SHIFT + line);
+    if ((bit_mask & reg_val) != 0) {
+        stat |= i2s_data_line_tx_fifo_avail;
+    }
+
+    bit_mask = 1 << (I2S_STA_RX_OV_SHIFT + line);
+    if ((bit_mask & reg_val) != 0) {
+        stat |= i2s_data_line_rx_fifo_overrun;
+        ptr->STA = bit_mask; /* clear flag: W1C*/
+    }
+
+    bit_mask = 1 << (I2S_STA_TX_UD_SHIFT + line);
+    if ((bit_mask & reg_val) != 0) {
+        stat |= i2s_data_line_tx_fifo_underrun;
+        ptr->STA = bit_mask; /* clear flag: W1C*/
+    }
+
+    return stat;
 }
 
 /**
@@ -400,17 +565,30 @@ static inline uint32_t i2s_get_irq_status(I2S_Type *ptr)
 }
 
 /**
+ * @brief I2S get IRQ status
+ *
+ * @param [in] ptr I2S base address
+ * @param [in] mask I2S STA.TX_UD or STA.RX_OV mask bits
+ */
+static inline void i2s_clear_irq_status(I2S_Type *ptr, uint32_t mask)
+{
+    ptr->STA = mask;
+}
+
+/**
  * @brief I2S stop transfer
  *
  * @param [in] ptr I2S base address
  */
 static inline void i2s_stop_transfer(I2S_Type *ptr)
 {
-    i2s_disable(ptr);
+    i2s_stop(ptr);
 }
 
 /**
  * @brief I2S config tx
+ *
+ * @note This API will stop I2S and configure parameters, could call i2s_start() to start I2S
  *
  * @param [in] ptr I2S base address
  * @param [in] mclk_in_hz mclk frequency in Hz
@@ -420,7 +598,19 @@ static inline void i2s_stop_transfer(I2S_Type *ptr)
 hpm_stat_t i2s_config_tx(I2S_Type *ptr, uint32_t mclk_in_hz, i2s_transfer_config_t *config);
 
 /**
+ * @brief I2S config tx for slave
+ *
+ * @note This API will stop I2S and configure parameters, could call i2s_start() to start I2S
+ *
+ * @param [in] ptr I2S base address
+ * @param [in] config i2s_transfer_config_t
+ */
+hpm_stat_t i2s_config_tx_slave(I2S_Type *ptr, i2s_transfer_config_t *config);
+
+/**
  * @brief I2S config rx
+ *
+ * @note This API will stop I2S and configure parameters, could call i2s_start() to start I2S
  *
  * @param [in] ptr I2S base address
  * @param [in] mclk_in_hz mclk frequency in Hz
@@ -430,7 +620,20 @@ hpm_stat_t i2s_config_tx(I2S_Type *ptr, uint32_t mclk_in_hz, i2s_transfer_config
 hpm_stat_t i2s_config_rx(I2S_Type *ptr, uint32_t mclk_in_hz, i2s_transfer_config_t *config);
 
 /**
+ * @brief I2S config rx for slave
+ *
+ * @note This API will stop I2S and configure parameters, could call i2s_start() to start I2S
+ *
+ * @param [in] ptr I2S base address
+ * @param [in] config i2s_transfer_config_t
+ * @retval hpm_stat_t status_invalid_argument or status_success
+ */
+hpm_stat_t i2s_config_rx_slave(I2S_Type *ptr, i2s_transfer_config_t *config);
+
+/**
  * @brief I2S config transfer
+ *
+ * @note This API will stop I2S and configure parameters, could call i2s_start() to start I2S
  *
  * @param [in] ptr I2S base address
  * @param [in] mclk_in_hz mclk frequency in Hz
@@ -440,24 +643,77 @@ hpm_stat_t i2s_config_rx(I2S_Type *ptr, uint32_t mclk_in_hz, i2s_transfer_config
 hpm_stat_t i2s_config_transfer(I2S_Type *ptr, uint32_t mclk_in_hz, i2s_transfer_config_t *config);
 
 /**
+ * @brief I2S config transfer for slave
+ *
+ * @note This API will stop I2S and configure parameters, could call i2s_start() to start I2S
+ *
+ * @param [in] ptr I2S base address
+ * @param [in] config i2s_transfer_config_t
+ * @retval hpm_stat_t status_invalid_argument or status_success
+ */
+hpm_stat_t i2s_config_transfer_slave(I2S_Type *ptr, i2s_transfer_config_t *config);
+
+/**
+ * @brief I2S config multiline transfer
+ *
+ * @note This API will stop I2S and configure parameters, could call i2s_start() to start I2S
+ *
+ * @param [in] ptr I2S base address
+ * @param [in] mclk_in_hz mclk frequency in Hz
+ * @param [in] config i2s_multiline_transfer_config_t
+ * @retval hpm_stat_t status_invalid_argument or status_success
+ */
+hpm_stat_t i2s_config_multiline_transfer(I2S_Type *ptr, uint32_t mclk_in_hz, i2s_multiline_transfer_config_t *config);
+
+/**
  * @brief I2S send data
  *
  * @param [in] ptr I2S base address
- * @param [in] tx_line_index data line
- * @param [in] src source data buff
- * @param [in] size data size
+ * @param [in] tx_line_index data line, @ref i2s_line_num_t
+ * @param [in] data data to be written
  */
-uint32_t i2s_send_data(I2S_Type *ptr, uint8_t tx_line_index, uint32_t *src, uint32_t size);
+static inline void i2s_send_data(I2S_Type *ptr, i2s_line_num_t tx_line_index, uint32_t data)
+{
+     ptr->TXD[tx_line_index] = data;
+}
 
 /**
  * @brief I2S receive data
  *
  * @param [in] ptr I2S base address
- * @param [in] rx_line_index data line
+ * @param [in] rx_line_index data line, @ref i2s_line_num_t
+ * @param [out] data point to store data address
+ */
+static inline void i2s_receive_data(I2S_Type *ptr, i2s_line_num_t rx_line_index, uint32_t *data)
+{
+    *data = ptr->RXD[rx_line_index];
+}
+
+/**
+ * @brief I2S send data in buff
+ *
+ * @param [in] ptr I2S base address
+ * @param [in] tx_line_index data line, @ref i2s_line_num_t
+ * @param [in] samplebits audio data width
+ * @param [in] src source data buff
+ * @param [in] size data size
+ *
+ * @retval I2S sent data size in byte
+ */
+uint32_t i2s_send_buff(I2S_Type *ptr, i2s_line_num_t tx_line_index, uint8_t samplebits, uint8_t *src, uint32_t size);
+
+/**
+ * @brief I2S receive data in buff
+ *
+ * @param [in] ptr I2S base address
+ * @param [in] rx_line_index data line, @ref i2s_line_num_t
+ * @param [in] samplebits audio data width
  * @param [out] dst target data buff
  * @param [in] size data size
+ *
+ * @retval I2S sent data size in byte
  */
-uint32_t i2s_receive_data(I2S_Type *ptr, uint8_t rx_line_index, uint32_t *dst, uint32_t size);
+uint32_t i2s_receive_buff(I2S_Type *ptr, i2s_line_num_t rx_line_index, uint8_t samplebits, uint8_t *dst, uint32_t size);
 
 /**
  * @brief I2S get default config
@@ -472,22 +728,27 @@ void i2s_get_default_config(I2S_Type *ptr, i2s_config_t *config);
  *
  * @param [in] ptr I2S base address
  * @param [in] config i2s_config_t
+ * @retval hpm_stat_t status_timeout or status_success
  */
-void i2s_init(I2S_Type *ptr, i2s_config_t *config);
+hpm_stat_t i2s_init(I2S_Type *ptr, i2s_config_t *config);
 
+#if defined(HPMSOC_HAS_HPMSDK_PDM) || defined(HPMSOC_HAS_HPMSDK_PDMLITE)
 /**
  * @brief I2S get default transfer config for pdm
  *
  * @param [out] transfer i2s_transfer_config_t
  */
 void i2s_get_default_transfer_config_for_pdm(i2s_transfer_config_t *transfer);
+#endif
 
+#if defined(HPMSOC_HAS_HPMSDK_DAO)
 /**
  * @brief I2S get default transfer config for dao
  *
  * @param [out] transfer i2s_transfer_config_t
  */
 void i2s_get_default_transfer_config_for_dao(i2s_transfer_config_t *transfer);
+#endif
 
 /**
  * @brief I2S get default transfer config
@@ -495,6 +756,53 @@ void i2s_get_default_transfer_config_for_dao(i2s_transfer_config_t *transfer);
  * @param [out] transfer i2s_transfer_config_t
  */
 void i2s_get_default_transfer_config(i2s_transfer_config_t *transfer);
+
+/**
+ * @brief I2S get default multiline transfer config
+ *
+ * @param [out] transfer i2s_multiline_transfer_config_t
+ */
+void i2s_get_default_multiline_transfer_config(i2s_multiline_transfer_config_t *transfer);
+
+/**
+ * @brief I2S fill dummy data into TX fifo
+ *
+ * @note workaround: fill dummy data into TX fifo to avoid TX underflow during tx start
+ * The first two data in FIFO will be pre read， which will cause the API to actually fill in 2 more
+ * dummy data than expected
+ *
+ * @param [in] ptr I2S base address
+ * @param [in] data_line data line, @ref i2s_line_num_t
+ * @param [in] data_count dummy data count, This value should be the same as the number of audio channels
+ *
+ * @retval status_success if no error occurred
+ */
+hpm_stat_t i2s_fill_tx_dummy_data(I2S_Type *ptr, i2s_line_num_t data_line, uint8_t data_count);
+
+
+#if defined(HPM_IP_FEATURE_I2S_BUFF_ALIGN_FRAME) && (HPM_IP_FEATURE_I2S_BUFF_ALIGN_FRAME)
+/**
+ * @brief I2S enable buff data align frame
+ *
+ * make the buffer data always frame aligned even in case of buffer underflow or overflow
+ *
+ * @param [in] ptr I2S base address
+ */
+static inline void i2s_enable_buff_align_frame(I2S_Type *ptr)
+{
+    ptr->CTRL |= I2S_CTRL_FRC_ALIGN_FBUF_MASK;
+}
+
+/**
+ * @brief I2S disable buff data align frame
+ *
+ * @param [in] ptr I2S base address
+ */
+static inline void i2s_disable_buff_align_frame(I2S_Type *ptr)
+{
+    ptr->CTRL &= ~I2S_CTRL_FRC_ALIGN_FBUF_MASK;
+}
+#endif
 
 /**
  * @}

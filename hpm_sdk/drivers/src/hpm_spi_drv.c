@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 hpmicro
+ * Copyright (c) 2021-2026 HPMicro
  *
  * SPDX-License-Identifier: BSD-3-Clause
  *
@@ -53,6 +53,24 @@ hpm_stat_t spi_wait_for_busy_status(SPI_Type *ptr)
     return status_success;
 }
 
+hpm_stat_t spi_poll_reset_complete(SPI_Type *ptr, spi_reset_mask_t reset_mask, uint32_t retry)
+{
+    uint32_t count = 0;
+
+    do {
+        if (count > retry) {
+            break;
+        }
+        count++;
+    } while (ptr->CTRL & reset_mask);
+
+    if (count > retry) {
+        return status_timeout;
+    }
+
+    return status_success;
+}
+
 hpm_stat_t spi_write_command(SPI_Type *ptr, spi_mode_selection_t mode, spi_control_config_t *config, uint8_t *cmd)
 {
     if (mode == spi_master_mode) {
@@ -69,14 +87,21 @@ hpm_stat_t spi_write_command(SPI_Type *ptr, spi_mode_selection_t mode, spi_contr
     return status_success;
 }
 
-static void spi_read_command(SPI_Type *ptr, spi_mode_selection_t mode, uint8_t *cmd)
+hpm_stat_t spi_read_command(SPI_Type *ptr, spi_mode_selection_t mode, spi_control_config_t *config, uint8_t *cmd)
 {
     if (mode == spi_slave_mode) {
-        *cmd = (uint8_t)(ptr->CMD & SPI_CMD_CMD_MASK) >> SPI_CMD_CMD_SHIFT;
+        if (config->slave_config.slave_data_only == false) {
+            if (cmd == NULL) {
+                return status_invalid_argument;
+            }
+            *cmd = (uint8_t)(ptr->CMD & SPI_CMD_CMD_MASK) >> SPI_CMD_CMD_SHIFT;
+        }
     }
+
+    return status_success;
 }
 
-static hpm_stat_t spi_write_address(SPI_Type *ptr, spi_mode_selection_t mode, spi_control_config_t *config, uint32_t *addr)
+hpm_stat_t spi_write_address(SPI_Type *ptr, spi_mode_selection_t mode, spi_control_config_t *config, uint32_t *addr)
 {
     if (mode == spi_master_mode) {
         if (config->master_config.addr_enable == true) {
@@ -90,14 +115,19 @@ static hpm_stat_t spi_write_address(SPI_Type *ptr, spi_mode_selection_t mode, sp
     return status_success;
 }
 
-hpm_stat_t spi_write_data(SPI_Type *ptr, uint8_t datalen, uint8_t *buff, uint32_t count)
+hpm_stat_t spi_write_data(SPI_Type *ptr, uint8_t data_len_in_bytes, uint8_t *buff, uint32_t count)
 {
     uint32_t status;
     uint32_t transferred = 0;
     uint32_t retry = 0;
+    uint32_t temp;
 
     /* check parameter validity */
     if (buff == NULL || count == 0) {
+        return status_invalid_argument;
+    }
+
+    if (data_len_in_bytes > 4 || data_len_in_bytes < 1) {
         return status_invalid_argument;
     }
 
@@ -106,19 +136,11 @@ hpm_stat_t spi_write_data(SPI_Type *ptr, uint8_t datalen, uint8_t *buff, uint32_
         status = ptr->STATUS;
         if (!(status & SPI_STATUS_TXFULL_MASK)) {
             /* write data into the txfifo */
-            if (datalen <= spi_data_length_8_bits) {
-                ptr->DATA = *(uint8_t *)buff & ((1UL << (datalen + 1)) - 1);
-                buff += sizeof(uint8_t);
-            } else if (datalen <= spi_data_length_16_bits) {
-                ptr->DATA = *(uint16_t *)buff & ((1UL << (datalen + 1)) - 1);
-                buff += sizeof(uint16_t);
-            } else if (datalen <= spi_data_length_31_bits) {
-                ptr->DATA = *(uint32_t *)buff & ((1UL << (datalen + 1)) - 1);
-                buff += sizeof(uint32_t);
-            } else {
-                ptr->DATA = *(uint32_t *)buff & 0xffffffff;
-                buff += sizeof(uint32_t);
+            temp = 0;
+            for (uint8_t i = 0; i < data_len_in_bytes; i++) {
+                temp += *(buff++) << i * 8;
             }
+            ptr->DATA = temp;
             /* transfer count increment */
             transferred++;
             retry = 0;
@@ -138,37 +160,37 @@ hpm_stat_t spi_write_data(SPI_Type *ptr, uint8_t datalen, uint8_t *buff, uint32_
     return status_success;
 }
 
-hpm_stat_t spi_read_data(SPI_Type *ptr, uint8_t datalen, uint8_t *buff, uint32_t count)
+hpm_stat_t spi_read_data(SPI_Type *ptr, uint8_t data_len_in_bytes, uint8_t *buff, uint32_t count)
 {
-    uint32_t status;
     uint32_t transferred = 0;
     uint32_t retry = 0;
-
+    uint32_t temp;
+    uint8_t rx_valid_size = 0;
+    uint8_t j = 0;
     /* check parameter validity */
     if (buff == NULL || count == 0) {
         return status_invalid_argument;
     }
 
+    if (data_len_in_bytes > 4 || data_len_in_bytes < 1) {
+        return status_invalid_argument;
+    }
+
     /* data transfer */
     while (transferred < count) {
-        status = ptr->STATUS;
-        if (!(status & SPI_STATUS_RXEMPTY_MASK)) {
-            /* read data from the txfifo */
-            if (datalen <= spi_data_length_8_bits) {
-                *(uint8_t *)buff = (uint8_t)(ptr->DATA & ((1UL << (datalen + 1)) - 1));
-                buff += sizeof(uint8_t);
-            } else if (datalen <= spi_data_length_16_bits) {
-                *(uint16_t *)buff = (uint16_t)(ptr->DATA & ((1UL << (datalen + 1)) - 1));
-                buff += sizeof(uint16_t);
-            } else if (datalen <= spi_data_length_31_bits) {
-                *(uint32_t *)buff = (uint32_t)(ptr->DATA & ((1UL << (datalen + 1)) - 1));
-                buff += sizeof(uint32_t);
-            } else {
-                *(uint32_t *)buff = (uint32_t)(ptr->DATA & 0xffffffff);
-                buff += sizeof(uint32_t);
+        rx_valid_size = spi_get_rx_fifo_valid_data_size(ptr);
+        if (rx_valid_size > 0) {
+            for (j = 0; j < rx_valid_size; j++) {
+                temp = ptr->DATA;
+                for (uint8_t i = 0; i < data_len_in_bytes; i++) {
+                    *(buff++) = (uint8_t)(temp >> (i * 8));
+                }
+                /* transfer count increment */
+                transferred++;
+                if (transferred >= count) {
+                    break;
+                }
             }
-            /* transfer count increment */
-            transferred++;
             retry = 0;
         } else {
             if (retry > HPM_SPI_DRV_DEFAULT_RETRY_COUNT) {
@@ -186,15 +208,20 @@ hpm_stat_t spi_read_data(SPI_Type *ptr, uint8_t datalen, uint8_t *buff, uint32_t
     return status_success;
 }
 
-hpm_stat_t spi_write_read_data(SPI_Type *ptr, uint8_t datalen, uint8_t *wbuff, uint32_t wcount, uint8_t *rbuff, uint32_t rcount)
+hpm_stat_t spi_write_read_data(SPI_Type *ptr, uint8_t data_len_in_bytes, uint8_t *wbuff, uint32_t wcount, uint8_t *rbuff, uint32_t rcount)
 {
     uint32_t status;
     uint32_t wtransferred = 0;
     uint32_t rtransferred = 0;
     uint32_t retry = 0;
+    uint32_t temp;
 
     /* check parameter validity */
     if (wbuff == NULL || wcount == 0 || rbuff == NULL || rcount == 0) {
+        return status_invalid_argument;
+    }
+
+    if (data_len_in_bytes > 4 || data_len_in_bytes < 1) {
         return status_invalid_argument;
     }
 
@@ -205,19 +232,11 @@ hpm_stat_t spi_write_read_data(SPI_Type *ptr, uint8_t datalen, uint8_t *wbuff, u
         if (wtransferred < wcount) {
             /* write data into the txfifo */
             if (!(status & SPI_STATUS_TXFULL_MASK)) {
-                if (datalen <= spi_data_length_8_bits) {
-                    ptr->DATA = *(uint8_t *)wbuff & ((1UL << (datalen + 1)) - 1);
-                    wbuff += sizeof(uint8_t);
-                } else if (datalen <= spi_data_length_16_bits) {
-                    ptr->DATA = *(uint16_t *)wbuff & ((1UL << (datalen + 1)) - 1);
-                    wbuff += sizeof(uint16_t);
-                } else if (datalen <= spi_data_length_31_bits) {
-                    ptr->DATA = *(uint32_t *)wbuff & ((1UL << (datalen + 1)) - 1);
-                    wbuff += sizeof(uint32_t);
-                } else {
-                    ptr->DATA = *(uint32_t *)wbuff & 0xffffffff;
-                    wbuff += sizeof(uint32_t);
+                temp = 0;
+                for (uint8_t i = 0; i < data_len_in_bytes; i++) {
+                    temp += *(wbuff++) << i * 8;
                 }
+                ptr->DATA = temp;
                 /* transfer count increment */
                 wtransferred++;
                 retry = 0;
@@ -232,19 +251,9 @@ hpm_stat_t spi_write_read_data(SPI_Type *ptr, uint8_t datalen, uint8_t *wbuff, u
         if (rtransferred < rcount) {
             /* read data from the txfifo */
             if (!(status & SPI_STATUS_RXEMPTY_MASK)) {
-
-                if (datalen <= spi_data_length_8_bits) {
-                    *(uint8_t *)rbuff = (uint8_t)(ptr->DATA & ((1UL << (datalen + 1)) - 1));
-                    rbuff += sizeof(uint8_t);
-                } else if (datalen <= spi_data_length_16_bits) {
-                    *(uint16_t *)rbuff = (uint16_t)(ptr->DATA & ((1UL << (datalen + 1)) - 1));
-                    rbuff += sizeof(uint16_t);
-                } else if (datalen <= spi_data_length_31_bits) {
-                    *(uint32_t *)rbuff = (uint32_t)(ptr->DATA & ((1UL << (datalen + 1)) - 1));
-                    rbuff += sizeof(uint32_t);
-                } else {
-                    *(uint32_t *)rbuff = (uint32_t)(ptr->DATA & 0xffffffff);
-                    rbuff += sizeof(uint32_t);
+                temp = ptr->DATA;
+                for (uint8_t i = 0; i < data_len_in_bytes; i++) {
+                    *(rbuff++) = (uint8_t)(temp >> (i * 8));
                 }
                 /* transfer count increment */
                 rtransferred++;
@@ -268,16 +277,12 @@ hpm_stat_t spi_write_read_data(SPI_Type *ptr, uint8_t datalen, uint8_t *wbuff, u
 
 static hpm_stat_t spi_no_data(SPI_Type *ptr, spi_mode_selection_t mode, spi_control_config_t *config)
 {
-    hpm_stat_t stat;
+    (void) ptr;
     if (mode == spi_master_mode) {
         if (config->master_config.cmd_enable == false && config->master_config.addr_enable == false) {
             return status_invalid_argument;
         }
-    } else {
-        HPM_CHECK_RET(spi_wait_for_busy_status(ptr));
-        HPM_CHECK_RET(spi_wait_for_idle_status(ptr));
     }
-
     return status_success;
 }
 
@@ -305,7 +310,7 @@ void spi_slave_get_default_format_config(spi_format_config_t *config)
     config->common_config.data_merge = false;
     config->common_config.mosi_bidir = false;
     config->common_config.lsb = false;
-    config->common_config.mode = spi_master_mode;
+    config->common_config.mode = spi_slave_mode;
     config->common_config.cpol = spi_sclk_high_idle;
     config->common_config.cpha = spi_sclk_sampling_even_clk_edges;
 }
@@ -322,6 +327,9 @@ void spi_master_get_default_control_config(spi_control_config_t *config)
     config->common_config.trans_mode = spi_trans_write_only;
     config->common_config.data_phase_fmt = spi_single_io_mode;
     config->common_config.dummy_cnt = spi_dummy_count_2;
+#if defined(HPM_IP_FEATURE_SPI_CS_SELECT) && (HPM_IP_FEATURE_SPI_CS_SELECT == 1)
+    config->common_config.cs_index = spi_cs_0;
+#endif
 }
 
 void spi_slave_get_default_control_config(spi_control_config_t *config)
@@ -332,18 +340,28 @@ void spi_slave_get_default_control_config(spi_control_config_t *config)
     config->common_config.trans_mode = spi_trans_read_only;
     config->common_config.data_phase_fmt = spi_single_io_mode;
     config->common_config.dummy_cnt = spi_dummy_count_2;
+#if defined(HPM_IP_FEATURE_SPI_CS_SELECT) && (HPM_IP_FEATURE_SPI_CS_SELECT == 1)
+    config->common_config.cs_index = spi_cs_0;
+#endif
 }
 
 hpm_stat_t spi_master_timing_init(SPI_Type *ptr, spi_timing_config_t *config)
 {
     uint8_t sclk_div;
-
+    uint32_t div_remainder;
+    uint32_t div_integer;
     if (config->master_config.sclk_freq_in_hz == 0) {
         return status_invalid_argument;
     }
 
     if (config->master_config.clk_src_freq_in_hz > config->master_config.sclk_freq_in_hz) {
-        sclk_div = (config->master_config.clk_src_freq_in_hz / config->master_config.sclk_freq_in_hz) / 2 - 1;
+        div_remainder = (config->master_config.clk_src_freq_in_hz % config->master_config.sclk_freq_in_hz);
+        div_integer  = (config->master_config.clk_src_freq_in_hz / config->master_config.sclk_freq_in_hz);
+        if ((div_remainder != 0) || ((div_integer % 2) != 0) ||
+            (div_integer > 510)) {  /* div_integer must be less than or equal to ((SCLK_DIV + 1) * 2), SCLK_DIV max value is 0xFE */
+            return status_invalid_argument;
+        }
+        sclk_div = (div_integer / 2) - 1;
     } else {
         sclk_div = 0xff;
     }
@@ -369,7 +387,20 @@ void spi_format_init(SPI_Type *ptr, spi_format_config_t *config)
 
 hpm_stat_t spi_control_init(SPI_Type *ptr, spi_control_config_t *config, uint32_t wcount, uint32_t rcount)
 {
-    if (wcount > SPI_SOC_TRANSFER_COUNT_MAX || rcount > SPI_SOC_TRANSFER_COUNT_MAX) {
+    uint8_t mode;
+#if defined(SPI_SOC_TRANSFER_COUNT_MAX) && (SPI_SOC_TRANSFER_COUNT_MAX == 512)
+    if ((wcount > SPI_SOC_TRANSFER_COUNT_MAX) || (rcount > SPI_SOC_TRANSFER_COUNT_MAX)) {
+        return status_invalid_argument;
+    }
+#endif
+
+    /* read spi control mode */
+    mode = (ptr->TRANSFMT & SPI_TRANSFMT_SLVMODE_MASK) >> SPI_TRANSFMT_SLVMODE_SHIFT;
+
+    /* slave data only mode only works on write read together transfer mode */
+    if ((config->slave_config.slave_data_only == true) &&
+        (config->common_config.trans_mode != spi_trans_write_read_together) &&
+        (mode == spi_slave_mode)) {
         return status_invalid_argument;
     }
 
@@ -385,12 +416,20 @@ hpm_stat_t spi_control_init(SPI_Type *ptr, spi_control_config_t *config, uint32_
                      SPI_TRANSCTRL_DUMMYCNT_SET(config->common_config.dummy_cnt) |
                      SPI_TRANSCTRL_RDTRANCNT_SET(rcount - 1);
 
+#if defined(HPM_IP_FEATURE_SPI_CS_SELECT) && (HPM_IP_FEATURE_SPI_CS_SELECT == 1)
+    ptr->CTRL = (ptr->CTRL & ~SPI_CTRL_CS_EN_MASK) | SPI_CTRL_CS_EN_SET(config->common_config.cs_index);
+#endif
+
+#if defined(HPM_IP_FEATURE_SPI_NEW_TRANS_COUNT) && (HPM_IP_FEATURE_SPI_NEW_TRANS_COUNT == 1)
+    ptr->WR_TRANS_CNT = wcount - 1;
+    ptr->RD_TRANS_CNT = rcount - 1;
+#endif
+
     /* reset txfifo, rxfifo and control */
     ptr->CTRL |= SPI_CTRL_TXFIFORST_MASK | SPI_CTRL_RXFIFORST_MASK | SPI_CTRL_SPIRST_MASK;
-
-    return status_success;
+    /* wait for all reset complete */
+    return spi_poll_reset_complete(ptr, spi_reset_all, HPM_SPI_DRV_DEFAULT_RETRY_COUNT);
 }
-
 
 hpm_stat_t spi_transfer(SPI_Type *ptr,
                         spi_control_config_t *config,
@@ -398,7 +437,16 @@ hpm_stat_t spi_transfer(SPI_Type *ptr,
                         uint8_t *wbuff, uint32_t wcount, uint8_t *rbuff, uint32_t rcount)
 {
     hpm_stat_t stat = status_fail;
-    uint8_t mode, data_len, trans_mode;
+    spi_mode_selection_t mode;
+    uint8_t data_len_in_bytes, trans_mode;
+
+    /* read spi control mode */
+    mode = (spi_mode_selection_t)((ptr->TRANSFMT & SPI_TRANSFMT_SLVMODE_MASK) >> SPI_TRANSFMT_SLVMODE_SHIFT);
+
+    /* When acting as a host, it is necessary to determine whether the SPI bus is active to ensure that only one device accesses the bus. */
+    if ((mode == spi_master_mode) && (spi_is_active(ptr) == true)) {
+        return status_spi_master_busy;
+    }
 
     stat = spi_control_init(ptr, config, wcount, rcount);
     if (stat != status_success) {
@@ -406,54 +454,51 @@ hpm_stat_t spi_transfer(SPI_Type *ptr,
     }
 
     /* read data length */
-    data_len = (ptr->TRANSFMT & SPI_TRANSFMT_DATALEN_MASK) >> SPI_TRANSFMT_DATALEN_SHIFT;
-
-    /* read spi control mode */
-    mode = (ptr->TRANSFMT & SPI_TRANSFMT_SLVMODE_MASK) >> SPI_TRANSFMT_SLVMODE_SHIFT;
+    data_len_in_bytes = spi_get_data_length_in_bytes(ptr);
 
     /* read spi transfer mode */
     trans_mode = config->common_config.trans_mode;
 
-    /* command phase */
-    stat = spi_write_command(ptr, mode, config, cmd);
+    /* write address on master mode */
+    stat = spi_write_address(ptr, mode, config, addr);
     if (stat != status_success) {
         return stat;
     }
 
-    /* address phase */
-    stat = spi_write_address(ptr, mode, config, addr);
+    /* write command on master mode */
+    stat = spi_write_command(ptr, mode, config, cmd);
     if (stat != status_success) {
         return stat;
     }
 
     /* data phase */
     if (trans_mode == spi_trans_write_read_together) {
-        stat = spi_write_read_data(ptr, data_len, wbuff, wcount, rbuff, rcount);
+        stat = spi_write_read_data(ptr, data_len_in_bytes, wbuff, wcount, rbuff, rcount);
     } else if (trans_mode == spi_trans_write_only || trans_mode == spi_trans_dummy_write) {
-        stat = spi_write_data(ptr, data_len, wbuff, wcount);
+        stat = spi_write_data(ptr, data_len_in_bytes, wbuff, wcount);
     } else if (trans_mode == spi_trans_read_only || trans_mode == spi_trans_dummy_read) {
-        stat = spi_read_data(ptr, data_len, rbuff, rcount);
+        stat = spi_read_data(ptr, data_len_in_bytes, rbuff, rcount);
     } else if (trans_mode == spi_trans_write_read || trans_mode == spi_trans_write_dummy_read) {
-        stat = spi_write_read_data(ptr, data_len, wbuff, wcount, rbuff, rcount);
+        stat = spi_write_read_data(ptr, data_len_in_bytes, wbuff, wcount, rbuff, rcount);
     } else if (trans_mode == spi_trans_read_write || trans_mode == spi_trans_read_dummy_write) {
-        stat = spi_write_read_data(ptr, data_len, wbuff, wcount, rbuff, rcount);
+        stat = spi_write_read_data(ptr, data_len_in_bytes, wbuff, wcount, rbuff, rcount);
     } else if (trans_mode == spi_trans_no_data) {
         stat = spi_no_data(ptr, mode, config);
     } else {
         stat = status_invalid_argument;
     }
 
-    /* read command and address */
-    if (stat == status_success) {
-        spi_read_command(ptr, mode, cmd);
-    }
-
     if (stat != status_success) {
         return stat;
     }
 
+    /* read command on slave mode */
+    stat = spi_read_command(ptr, mode, config, cmd);
+    if (stat != status_success) {
+        return stat;
+    }
+    /* on the slave mode, if master keeps asserting the cs signal, it's maybe timeout */
     stat = spi_wait_for_idle_status(ptr);
-
     return stat;
 }
 
@@ -463,11 +508,14 @@ hpm_stat_t spi_setup_dma_transfer(SPI_Type *ptr,
                         uint32_t wcount, uint32_t rcount)
 {
     hpm_stat_t stat = status_fail;
-    uint8_t mode;
+    spi_mode_selection_t mode;
 
-    stat = spi_wait_for_idle_status(ptr);
-    if (stat != status_success) {
-        return stat;
+    /* read spi control mode */
+    mode = (spi_mode_selection_t)((ptr->TRANSFMT & SPI_TRANSFMT_SLVMODE_MASK) >> SPI_TRANSFMT_SLVMODE_SHIFT);
+
+    /* When acting as a host, it is necessary to determine whether the SPI bus is active to ensure that only one device accesses the bus. */
+    if ((mode == spi_master_mode) && (spi_is_active(ptr) == true)) {
+        return status_spi_master_busy;
     }
 
     stat = spi_control_init(ptr, config, wcount, rcount);
@@ -476,19 +524,13 @@ hpm_stat_t spi_setup_dma_transfer(SPI_Type *ptr,
     }
 
     if (config->common_config.tx_dma_enable) {
+#if defined(HPM_IP_FEATURE_SPI_DMA_TX_REQ_AFTER_CMD_FO_MASTER) && (HPM_IP_FEATURE_SPI_DMA_TX_REQ_AFTER_CMD_FO_MASTER == 1)
+        ptr->CTRL |= SPI_CTRL_CMD_OP_MASK;
+#endif
         ptr->CTRL |= SPI_CTRL_TXDMAEN_MASK;
     }
     if (config->common_config.rx_dma_enable) {
         ptr->CTRL |= SPI_CTRL_RXDMAEN_MASK;
-    }
-
-    /* read spi control mode */
-    mode = (ptr->TRANSFMT & SPI_TRANSFMT_SLVMODE_MASK) >> SPI_TRANSFMT_SLVMODE_SHIFT;
-
-    /* command phase */
-    stat = spi_write_command(ptr, mode, config, cmd);
-    if (stat != status_success) {
-        return stat;
     }
 
     /* address phase */
@@ -497,11 +539,148 @@ hpm_stat_t spi_setup_dma_transfer(SPI_Type *ptr,
         return stat;
     }
 
-    /* read command and address */
-    if (stat == status_success) {
-        spi_read_command(ptr, mode, cmd);
+    /* command phase */
+    stat = spi_write_command(ptr, mode, config, cmd);
+    if (stat != status_success) {
+        return stat;
     }
 
     return stat;
 }
 
+
+#if defined(HPM_IP_FEATURE_SPI_SUPPORT_DIRECTIO) && (HPM_IP_FEATURE_SPI_SUPPORT_DIRECTIO == 1)
+hpm_stat_t spi_directio_enable_output(SPI_Type *ptr, spi_directio_pin_t pin)
+{
+    hpm_stat_t stat = status_success;
+    switch (pin) {
+    case hold_pin:
+        ptr->DIRECTIO |= SPI_DIRECTIO_HOLD_OE_MASK;
+        break;
+    case wp_pin:
+        ptr->DIRECTIO |= SPI_DIRECTIO_WP_OE_MASK;
+        break;
+    case miso_pin:
+        ptr->DIRECTIO |= SPI_DIRECTIO_MISO_OE_MASK;
+        break;
+    case mosi_pin:
+        ptr->DIRECTIO |= SPI_DIRECTIO_MOSI_OE_MASK;
+        break;
+    case sclk_pin:
+        ptr->DIRECTIO |= SPI_DIRECTIO_SCLK_OE_MASK;
+        break;
+    case cs_pin:
+        ptr->DIRECTIO |= SPI_DIRECTIO_CS_OE_MASK;
+        break;
+    default:
+        stat = status_invalid_argument;
+        break;
+    }
+    return stat;
+}
+
+hpm_stat_t spi_directio_disable_output(SPI_Type *ptr, spi_directio_pin_t pin)
+{
+    hpm_stat_t stat = status_success;
+    switch (pin) {
+    case hold_pin:
+        ptr->DIRECTIO &= ~SPI_DIRECTIO_HOLD_OE_MASK;
+        break;
+    case wp_pin:
+        ptr->DIRECTIO &= ~SPI_DIRECTIO_WP_OE_MASK;
+        break;
+    case miso_pin:
+        ptr->DIRECTIO &= ~SPI_DIRECTIO_MISO_OE_MASK;
+        break;
+    case mosi_pin:
+        ptr->DIRECTIO &= ~SPI_DIRECTIO_MOSI_OE_MASK;
+        break;
+    case sclk_pin:
+        ptr->DIRECTIO &= ~SPI_DIRECTIO_SCLK_OE_MASK;
+        break;
+    case cs_pin:
+        ptr->DIRECTIO &= ~SPI_DIRECTIO_CS_OE_MASK;
+        break;
+    default:
+        stat = status_invalid_argument;
+        break;
+    }
+    return stat;
+}
+
+hpm_stat_t spi_directio_write(SPI_Type *ptr, spi_directio_pin_t pin, bool high)
+{
+    hpm_stat_t stat = status_success;
+    switch (pin) {
+    case hold_pin:
+        (high == true) ? (ptr->DIRECTIO |= SPI_DIRECTIO_HOLD_O_MASK) : (ptr->DIRECTIO &= ~SPI_DIRECTIO_HOLD_O_MASK);
+        break;
+    case wp_pin:
+        (high == true) ? (ptr->DIRECTIO |= SPI_DIRECTIO_WP_O_MASK) : (ptr->DIRECTIO &= ~SPI_DIRECTIO_WP_O_MASK);
+        break;
+    case miso_pin:
+        (high == true) ? (ptr->DIRECTIO |= SPI_DIRECTIO_MISO_O_MASK) : (ptr->DIRECTIO &= ~SPI_DIRECTIO_MISO_O_MASK);
+        break;
+    case mosi_pin:
+        (high == true) ? (ptr->DIRECTIO |= SPI_DIRECTIO_MOSI_O_MASK) : (ptr->DIRECTIO &= ~SPI_DIRECTIO_MOSI_O_MASK);
+        break;
+    case sclk_pin:
+        (high == true) ? (ptr->DIRECTIO |= SPI_DIRECTIO_SCLK_O_MASK) : (ptr->DIRECTIO &= ~SPI_DIRECTIO_SCLK_O_MASK);
+        break;
+    case cs_pin:
+        (high == true) ? (ptr->DIRECTIO |= SPI_DIRECTIO_CS_O_MASK) : (ptr->DIRECTIO &= ~SPI_DIRECTIO_CS_O_MASK);
+        break;
+    default:
+        stat = status_invalid_argument;
+        break;
+    }
+    return stat;
+}
+
+uint8_t spi_directio_read(SPI_Type *ptr, spi_directio_pin_t pin)
+{
+    uint8_t io_sta = 0;
+    switch (pin) {
+    case hold_pin:
+        io_sta = SPI_DIRECTIO_HOLD_I_GET(ptr->DIRECTIO);
+        break;
+    case wp_pin:
+        io_sta = SPI_DIRECTIO_WP_I_GET(ptr->DIRECTIO);
+        break;
+    case miso_pin:
+        io_sta = SPI_DIRECTIO_MISO_I_GET(ptr->DIRECTIO);
+        break;
+    case mosi_pin:
+        io_sta = SPI_DIRECTIO_MOSI_I_GET(ptr->DIRECTIO);
+        break;
+    case sclk_pin:
+        io_sta = SPI_DIRECTIO_SCLK_I_GET(ptr->DIRECTIO);
+        break;
+    case cs_pin:
+        io_sta = SPI_DIRECTIO_CS_I_GET(ptr->DIRECTIO);
+        break;
+    default:
+        break;
+    }
+    return io_sta;
+}
+#endif
+
+void spi_deinit(SPI_Type *ptr)
+{
+#if defined(HPM_IP_FEATURE_SPI_NEW_TRANS_COUNT) && (HPM_IP_FEATURE_SPI_NEW_TRANS_COUNT == 1)
+    ptr->WR_TRANS_CNT = 0;
+    ptr->RD_TRANS_CNT = 0;
+#endif
+#if defined(HPM_IP_FEATURE_SPI_SUPPORT_DIRECTIO) && (HPM_IP_FEATURE_SPI_SUPPORT_DIRECTIO == 1)
+    ptr->DIRECTIO = SPI_DIRECTIO_HOLD_O_MASK | SPI_DIRECTIO_WP_O_MASK | SPI_DIRECTIO_CS_O_MASK;
+#endif
+    ptr->TRANSFMT = SPI_TRANSFMT_DATALEN_SET(7);
+    ptr->TRANSCTRL = 0;
+    ptr->ADDR = 0;
+    ptr->CTRL = 0;
+    ptr->INTREN = 0;
+    ptr->INTRST = 0xffffffffU; /* W1C */
+    ptr->TIMING = 0;
+    ptr->SLVST = SPI_SLVST_OVERRUN_MASK | SPI_SLVST_UNDERRUN_MASK; /* W1C */
+}
