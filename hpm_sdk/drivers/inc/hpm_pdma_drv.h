@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 hpmicro
+ * Copyright (c) 2021 HPMicro
  *
  * SPDX-License-Identifier: BSD-3-Clause
  *
@@ -150,6 +150,21 @@ typedef struct pdma_plane_info {
     display_pixel_format_t format;                  /**< pixel format */
 } pdma_plane_info_t;
 
+
+typedef struct pdma_blit_option {
+    display_alphablend_mode_t blend;
+    struct {
+        uint16_t x;
+        uint16_t y;
+    } translate;
+    pdma_flip_t flip;
+    pdma_rotate_t rotate;
+    struct {
+        float x; /* 0.0625 - 4095 */
+        float y; /* 0.0625 - 4095 */
+    } scale;
+} pdma_blit_option_t;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -218,7 +233,7 @@ void pdma_config_output(PDMA_Type *ptr, pdma_output_config_t *config);
  *
  * Note: The plane_src and plane_dst share one YUV2RGB_COEF, so not support convert one plane YUV422 format
  * and another plane YCbCr422 format at same time
- * 
+ *
  * @param [in] ptr PDMA base address
  * @param [in] plane_src_config Pointer to plane_src configuration structure
  * @param [in] plane_dst_config Pointer to plan_dst configuration structure
@@ -271,8 +286,8 @@ hpm_stat_t pdma_fill_color(PDMA_Type *ptr, uint32_t dst, uint32_t dst_width,
  * @param [in] dst_width target buff pixel width
  * @param [in] src source buff address
  * @param [in] src_width source buff pixel width
- * @param [in] x x coordinate n buffer
- * @param [in] y y coordinate n buffer
+ * @param [in] x x coordinate in buffer
+ * @param [in] y y coordinate in buffer
  * @param [in] width output image width
  * @param [in] height output image height
  * @param [in] flip pdma_flip_t
@@ -282,6 +297,7 @@ hpm_stat_t pdma_fill_color(PDMA_Type *ptr, uint32_t dst, uint32_t dst_width,
  * @param [in] wait wait for execution to complete
  * @param [out] status pdma status
  * @retval hpm_stat_t: status_success if flip and rotate plane without any error
+ * @deprecated This API will be deleted in future versions. It is recommended to use the pdma_blit_ex API instead
  */
 hpm_stat_t pdma_flip_rotate(PDMA_Type *ptr, uint32_t dst, uint32_t dst_width,
                     uint32_t src, uint32_t src_width, uint32_t x, uint32_t y,
@@ -307,6 +323,7 @@ hpm_stat_t pdma_flip_rotate(PDMA_Type *ptr, uint32_t dst, uint32_t dst_width,
  * @param [in] wait wait for execution to complete
  * @param [out] status pdma status
  * @retval hpm_stat_t: status_success if flip and rotate plane without any error
+ * @deprecated This API will be deleted in future versions. It is recommended to use the pdma_blit_ex API instead
  */
 hpm_stat_t pdma_blit(PDMA_Type *ptr,
                      uint32_t dst, uint32_t dst_width,
@@ -335,6 +352,7 @@ hpm_stat_t pdma_blit(PDMA_Type *ptr,
  * @param [in] wait wait for execution to complete
  * @param [out] status pdma status
  * @retval hpm_stat_t: status_success if flip and rotate plane without any error
+ * @deprecated This API will be deleted in future versions. It is recommended to use the pdma_blit_ex API instead
  */
 hpm_stat_t pdma_scale(PDMA_Type *ptr,
                      uint32_t dst, uint32_t dst_width,
@@ -343,6 +361,29 @@ hpm_stat_t pdma_scale(PDMA_Type *ptr,
                      uint32_t target_width, uint32_t target_height,
                      uint8_t alpha,
                      display_pixel_format_t format,
+                     bool wait, uint32_t *status);
+/**
+ * @brief PDMA get default blit option
+ *
+ * @param op option of blit
+ */
+void pdma_get_default_blit_option(pdma_blit_option_t *op);
+
+/**
+ * @brief PDMA blit plane by option
+ *
+ * @param ptr PDMA base address
+ * @param dst target buff address
+ * @param src source buff address
+ * @param op option of blit
+ * @param wait wait for execution to complete
+ * @param status pdma status
+ * @retval hpm_stat_t: status_success if flip and rotate plane without any error
+ */
+hpm_stat_t pdma_blit_ex(PDMA_Type *ptr,
+                     display_buf_t *dst,
+                     display_buf_t *src,
+                     pdma_blit_option_t *op,
                      bool wait, uint32_t *status);
 
 /**
